@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX ULTRA AI DASHBOARD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+ background:radial-gradient(circle,#020617,#000);
+ color:white;
+ font-family:Segoe UI;
+ padding:15px;
+}
+
+/* HEADER */
+.header{
+ text-align:center;
+ font-size:28px;
+ color:#38bdf8;
+ text-shadow:0 0 25px #38bdf8;
+ margin-bottom:20px;
+}
+
+/* CARD */
+.card{
+ backdrop-filter:blur(15px);
+ background:rgba(2,6,23,0.7);
+ border:1px solid rgba(56,189,248,0.4);
+ box-shadow:0 0 25px rgba(56,189,248,0.4);
+ border-radius:16px;
+ padding:16px;
+ margin-bottom:18px;
+}
+
+/* PAIR GRID */
+.pairGrid{
+ display:grid;
+ grid-template-columns:repeat(2,1fr);
+ gap:10px;
+}
+
+/* NEON BUTTON */
+.pairBtn,button{
+ padding:14px;
+ border-radius:12px;
+ border:1px solid #38bdf8;
+ background:#020617;
+ color:#38bdf8;
+ font-weight:bold;
+ box-shadow:0 0 15px #38bdf8;
+ cursor:pointer;
+ transition:0.2s;
+}
+
+.pairBtn:hover,button:hover{
+ transform:scale(1.05);
+ box-shadow:0 0 30px #38bdf8;
+}
+
+/* BOT SIGNAL CARD */
+.signal{
+ padding:14px;
+ border-radius:12px;
+ background:#020617;
+ margin:10px 0;
+ border-left:5px solid #38bdf8;
+}
+
+/* FOOTER */
+.footer{
+ text-align:center;
+ color:#38bdf8;
+ margin-top:25px;
+ text-shadow:0 0 10px #38bdf8;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">🚀 APX ULTRA AI TERMINAL</div>
+
+<!-- CONTROL -->
+<div class="card">
+<h3>🎛 SIGNAL CONTROL</h3>
+<div class="pairGrid" id="pairs"></div>
+</div>
+
+<!-- RESULT CONTROL -->
+<div class="card">
+<h3>📊 RESULT CONTROL</h3>
+<button onclick="markWin()">WIN 🏆</button>
+<button onclick="markLoss()">LOSS ❌</button>
+<button onclick="markMTG()">MTG1 ⚠</button>
+</div>
+
+<!-- LIVE BOT FEED -->
+<div class="card">
+<h3>🤖 LIVE BOT FEED</h3>
+<div id="feed"></div>
+</div>
+
+<!-- SUMMARY -->
+<div class="card">
+<h3>📊 SUMMARY</h3>
+<div id="summary"></div>
+</div>
+
+<div class="footer">🌐 Powered by APX Premium</div>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+
+const PAIRS=[
+"AXP-OTC","PFE-OTC","INTL-OTC",
+"JNJ-OTC","MCD-OTC","BA-OTC","MSFT-OTC"
+];
+
+let lastPair="";
+
+// BUILD PAIRS
+function buildPairs(){
+
+ let html="";
+
+ PAIRS.forEach(p=>{
+ html+=`<div class="pairBtn" onclick="sendSignal('${p}')">${p}</div>`;
+ });
+
+ pairs.innerHTML=html;
+
+}
+
+// SEND SIGNAL
+async function sendSignal(pair){
+
+ lastPair=pair;
+
+ await fetch(API+"/api/manual-signal",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({pair})
+ });
+
+ loadFeed();
+
+}
+
+// RESULT BUTTONS
+async function markWin(){ updateResult("WIN 🏆💚"); }
+async function markLoss(){ updateResult("LOSS ❌"); }
+async function markMTG(){ updateResult("MTG 1 ⚠"); }
+
+async function updateResult(r){
+
+ await fetch(API+"/api/update-result",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({result:r})
+ });
+
+ loadFeed();
+
+}
+
+// LOAD FEED + SUMMARY
+async function loadFeed(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ let html="";
+ let win=0,loss=0,mtg=0,total=0;
+
+ j.results.forEach(s=>{
+
+ total++;
+
+ html+=`
+ <div class="signal">
+ 🤖 APEX PREMIUM BOT<br>
+ 📊 PAIR: ${s.pair}<br>
+ 📈 SIGNAL: ${s.direction}<br>
+ RESULT: ${s.result}<br>
+ 🕒 ${s.signal_time}
+ </div>
+ `;
+
+ if(s.result?.includes("WIN")) win++;
+ if(s.result?.includes("LOSS")) loss++;
+ if(s.result?.includes("MTG")) mtg++;
+
+ });
+
+ feed.innerHTML=html;
+
+ let acc = total ? ((win/total)*100).toFixed(1) : 0;
+
+ let now=new Date();
+
+ summary.innerHTML=`
+ Total: ${total}<br>
+ Win: ${win}<br>
+ Loss: ${loss}<br>
+ MTG: ${mtg}<br>
+ Accuracy: ${acc}%<br>
+ Date: ${now.toLocaleDateString()}<br>
+ Time: ${now.toLocaleTimeString()}<br>
+ Day: ${now.toLocaleDateString('en-US',{weekday:'long'})}
+ `;
+
+}
+
+setInterval(loadFeed,5000);
+buildPairs();
+loadFeed();
+
+</script>
+
+</body>
+</html>
