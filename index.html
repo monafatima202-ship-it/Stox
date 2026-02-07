@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX ULTRA AI TERMINAL</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+ background:radial-gradient(circle,#020617,#000);
+ font-family:Segoe UI;
+ color:white;
+ padding:15px;
+}
+
+.header{
+ text-align:center;
+ font-size:26px;
+ color:#38bdf8;
+ text-shadow:0 0 20px #38bdf8;
+ margin-bottom:20px;
+}
+
+.card{
+ backdrop-filter:blur(20px);
+ background:rgba(2,6,23,0.7);
+ border:1px solid rgba(56,189,248,0.3);
+ box-shadow:0 0 20px rgba(56,189,248,0.3);
+ border-radius:15px;
+ padding:15px;
+ margin-bottom:15px;
+}
+
+button{
+ padding:12px 20px;
+ border:none;
+ border-radius:12px;
+ font-weight:bold;
+ cursor:pointer;
+ background:#020617;
+ color:#38bdf8;
+ box-shadow:0 0 10px #38bdf8;
+}
+
+button:hover{
+ box-shadow:0 0 20px #38bdf8;
+}
+
+select,input{
+ width:95%;
+ padding:10px;
+ margin:5px;
+ border-radius:10px;
+ border:none;
+ background:#020617;
+ color:white;
+}
+
+.signal{
+ padding:12px;
+ margin:10px 0;
+ border-radius:12px;
+ background:rgba(2,6,23,0.9);
+}
+
+.buy{border-left:5px solid #22c55e;}
+.sell{border-left:5px solid #ef4444;}
+
+.hidden{display:none;}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">🚀 APX ULTRA AI TERMINAL</div>
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button onclick="login()">LOGIN</button>
+</div>
+
+<!-- DASH -->
+<div id="dash" class="hidden">
+
+<div class="card">
+<h3>🎛 Signal Control</h3>
+
+<select id="pair">
+<option>AXP-OTC</option>
+<option>PFE-OTC</option>
+<option>INTL-OTC</option>
+<option>JNJ-OTC</option>
+<option>MCD-OTC</option>
+<option>BA-OTC</option>
+<option>MSFT-OTC</option>
+</select>
+
+<button onclick="generateSignal()">🚀 Generate Signal</button>
+
+<div id="signalBox"></div>
+
+</div>
+
+<div class="card">
+<h3>📊 REAL TELEGRAM SIGNAL FEED</h3>
+<div id="feed"></div>
+</div>
+
+</div>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+
+const PAIRS=[
+"AXP-OTC","PFE-OTC","INTL-OTC",
+"JNJ-OTC","MCD-OTC","BA-OTC","MSFT-OTC"
+];
+
+// LOGIN
+async function login(){
+
+ let r=await fetch(API+"/api/login",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({
+ u:user.value,
+ p:pass.value
+ })
+ });
+
+ let j=await r.json();
+
+ if(j.ok){
+ loginBox.style.display="none";
+ dash.classList.remove("hidden");
+ loadRealSignals();
+ }else alert("Login Failed");
+
+}
+
+
+// MILONGAZI DATA
+async function candles(pair){
+
+ let r=await fetch(
+ `https://milongazi197.serv00.net/otc.php?pair=${pair}&tf=M1&limit=40`
+ );
+
+ let j=await r.json();
+ return j.data;
+
+}
+
+
+// EMA
+function EMA(c,p){
+ let k=2/(p+1);
+ let ema=c[0].close;
+ for(let x of c){
+ ema=x.close*k+ema*(1-k);
+ }
+ return ema;
+}
+
+
+// RSI
+function RSI(c,p){
+ let g=0,l=0;
+ for(let i=1;i<p;i++){
+ let d=c[i].close-c[i-1].close;
+ if(d>0) g+=d;
+ else l-=d;
+ }
+ let rs=g/(l||1);
+ return 100-(100/(1+rs));
+}
+
+
+// AI SIGNAL BALANCED
+async function aiSignal(pair){
+
+ let c=await candles(pair);
+ if(!c) return null;
+
+ let ema12=EMA(c,12);
+ let ema26=EMA(c,26);
+ let rsi=RSI(c,14);
+
+ let last=c[c.length-1].close;
+ let prev=c[c.length-2].close;
+
+ let dir=null;
+
+ if(ema12>ema26 && rsi>50 && last>prev) dir="CALL";
+ if(ema12<ema26 && rsi<50 && last<prev) dir="PUT";
+
+ if(!dir) return null;
+
+ return {pair,dir,entry:last};
+
+}
+
+
+// GENERATE SIGNAL + TELEGRAM SEND
+async function generateSignal(){
+
+ let pairSel=document.getElementById("pair").value;
+
+ let s=await aiSignal(pairSel);
+
+ if(!s){
+ signalBox.innerHTML="No signal now";
+ return;
+ }
+
+ let text=`🤖 APX ULTRA AI
+━━━━━━━━━━━━
+📊 ${s.pair}
+📈 ${s.dir}
+💰 ${s.entry}
+━━━━━━━━━━━━`;
+
+ await fetch(API+"/api/send-signal",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({
+ pair:s.pair,
+ direction:s.dir,
+ entry:s.entry,
+ text:text
+ })
+ });
+
+ signalBox.innerHTML=`
+ <div class="signal ${s.dir==="CALL"?"buy":"sell"}">
+ SENT → ${s.pair} → ${s.dir} → ${s.entry}
+ </div>
+ `;
+
+ loadRealSignals();
+
+}
+
+
+// LOAD REAL TELEGRAM SIGNALS
+async function loadRealSignals(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ let html="";
+
+ j.results.forEach(s=>{
+
+ html+=`
+ <div class="signal ${s.direction==="CALL"?"buy":"sell"}">
+ ${s.pair} → ${s.direction} → ${s.result}
+ </div>
+ `;
+
+ });
+
+ feed.innerHTML=html;
+
+}
+
+setInterval(loadRealSignals,5000);
+
+</script>
+
+</body>
+</html>
