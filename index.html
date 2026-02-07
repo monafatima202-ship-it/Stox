@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX ULTRA PLATFORM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+ font-family:Segoe UI;
+ background:radial-gradient(circle at top,#020617,#000);
+ color:white;
+ padding:20px;
+}
+
+.hidden{ display:none; }
+
+.header{
+ text-align:center;
+ font-size:28px;
+ font-weight:700;
+ margin-bottom:25px;
+ text-shadow:0 0 15px #22c55e;
+}
+
+/* CARD */
+.card{
+ background:rgba(15,23,42,0.8);
+ backdrop-filter:blur(14px);
+ border-radius:18px;
+ padding:20px;
+ margin-bottom:20px;
+ border:1px solid rgba(34,197,94,0.2);
+}
+
+/* BUTTON */
+button{
+ padding:14px;
+ border:none;
+ border-radius:12px;
+ font-weight:600;
+ margin:5px;
+ cursor:pointer;
+}
+
+.start{ background:#22c55e; color:black;}
+.stop{ background:#ef4444; color:white;}
+.ai{ background:#6366f1; color:white;}
+
+.status{
+ text-align:center;
+ font-size:22px;
+ margin-top:10px;
+}
+
+/* SIGNAL CARD */
+.signalCard{
+ padding:20px;
+ border-radius:16px;
+ text-align:center;
+ font-size:20px;
+ font-weight:600;
+}
+
+.buyGlow{ box-shadow:0 0 20px #22c55e; }
+.sellGlow{ box-shadow:0 0 20px #ef4444; }
+
+table{
+ width:100%;
+ border-collapse:collapse;
+}
+
+td,th{
+ padding:12px;
+ text-align:center;
+ border-bottom:1px solid #1e293b;
+}
+
+.win{ color:#22c55e; }
+.loss{ color:#ef4444; }
+.pending{ color:#facc15; }
+
+input{
+ padding:12px;
+ border-radius:10px;
+ border:none;
+ width:100%;
+ margin-bottom:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox">
+
+<div class="card">
+<h2>🔐 APX LOGIN</h2>
+
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+
+<button onclick="login()">LOGIN</button>
+
+</div>
+
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
+
+<div class="header">🚀 APX ULTRA PLATFORM</div>
+
+<div class="card">
+
+<button class="start" onclick="botOn()">🟢 START</button>
+<button class="stop" onclick="botOff()">🔴 STOP</button>
+<button class="ai" onclick="toggleAI()">🧠 AI MODE</button>
+
+<div id="status" class="status">Checking...</div>
+
+</div>
+
+<div class="card">
+<h3>⚡ LIVE SIGNAL</h3>
+<div id="liveSignal" class="signalCard">Waiting...</div>
+</div>
+
+<div class="card">
+<h3>📊 Stats</h3>
+<div id="stats">Loading...</div>
+</div>
+
+<div class="card">
+<h3>📜 History</h3>
+<table id="signals"></table>
+</div>
+
+<div class="card">
+<h3>📈 Live Chart</h3>
+<iframe width="100%" height="300"
+src="https://s.tradingview.com/widgetembed/?symbol=NASDAQ:MSFT">
+</iframe>
+</div>
+
+</div>
+
+<!-- SOUND -->
+<audio id="soundSignal" src="https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3"></audio>
+<audio id="soundWin" src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3"></audio>
+<audio id="soundLoss" src="https://assets.mixkit.co/sfx/preview/mixkit-losing-bleeps-2026.mp3"></audio>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+let lastSignalID=null;
+let aiMode=false;
+
+// LOGIN
+function login(){
+
+ let u=document.getElementById("user").value;
+ let p=document.getElementById("pass").value;
+
+ if(u==="admin" && p==="apx123"){
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("dashboard").classList.remove("hidden");
+ }else{
+  alert("Wrong Login");
+ }
+
+}
+
+// BOT CONTROL
+async function botOn(){ await fetch(API+"/api/bot-on"); }
+async function botOff(){ await fetch(API+"/api/bot-off"); }
+
+// AI MODE
+function toggleAI(){
+ aiMode=!aiMode;
+ alert("AI MODE: "+(aiMode?"ON":"OFF"));
+}
+
+// STATUS
+async function loadStatus(){
+ let r=await fetch(API+"/api/status");
+ let j=await r.json();
+ document.getElementById("status").innerHTML=
+ j.bot==="ON"?"🟢 BOT RUNNING":"🔴 BOT STOPPED";
+}
+
+// STATS
+async function loadStats(){
+ let r=await fetch(API+"/api/stats");
+ let j=await r.json();
+
+ document.getElementById("stats").innerHTML=
+ "Total "+j.total+" | Win "+j.win+" | Loss "+j.loss+" | WR "+j.wr+"%";
+}
+
+// SIGNALS
+async function loadSignals(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ if(j.results.length>0){
+
+  let sig=j.results[0];
+
+  if(lastSignalID!==sig.id){
+   document.getElementById("soundSignal").play();
+   if(sig.result==="WIN") document.getElementById("soundWin").play();
+   if(sig.result==="LOSS") document.getElementById("soundLoss").play();
+   lastSignalID=sig.id;
+  }
+
+  updateLive(sig);
+ }
+
+ let html="<tr><th>PAIR</th><th>TYPE</th><th>RESULT</th></tr>";
+
+ j.results.forEach(s=>{
+  let cls=s.result==="WIN"?"win":(s.result==="LOSS"?"loss":"pending");
+
+  html+=`
+  <tr>
+  <td>${s.pair}</td>
+  <td>${s.direction}</td>
+  <td class="${cls}">${s.result}</td>
+  </tr>`;
+ });
+
+ document.getElementById("signals").innerHTML=html;
+
+}
+
+function updateLive(sig){
+
+ let el=document.getElementById("liveSignal");
+ let glow=sig.direction==="CALL"?"buyGlow":"sellGlow";
+
+ el.className="signalCard "+glow;
+ el.innerHTML=`
+ ${sig.pair}<br>
+ ${sig.direction}<br>
+ ${sig.result}
+ `;
+
+}
+
+setInterval(()=>{
+ loadStatus();
+ loadStats();
+ loadSignals();
+},4000);
+
+</script>
+
+</body>
+</html>
