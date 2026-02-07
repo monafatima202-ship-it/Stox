@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX ULTRA PREMIUM TERMINAL</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+ background: radial-gradient(circle,#020617,#000);
+ color:white;
+ font-family:Segoe UI;
+ padding:20px;
+}
+
+/* HEADER */
+.header{
+ text-align:center;
+ font-size:30px;
+ color:#38bdf8;
+ text-shadow:0 0 25px #38bdf8;
+ margin-bottom:20px;
+ animation: glow 2s infinite alternate;
+}
+
+@keyframes glow{
+ from{ text-shadow:0 0 15px #38bdf8; }
+ to{ text-shadow:0 0 35px #38bdf8; }
+}
+
+/* CARD */
+.card{
+ background:rgba(2,6,23,.8);
+ border:1px solid #38bdf8;
+ border-radius:16px;
+ padding:18px;
+ margin-bottom:18px;
+ box-shadow:0 0 25px rgba(56,189,248,.4);
+ backdrop-filter: blur(10px);
+}
+
+/* GLOW BUTTON */
+.glowBtn{
+ width:100%;
+ padding:14px;
+ margin:6px 0;
+ border-radius:12px;
+ border:1px solid #38bdf8;
+ background:#020617;
+ color:#38bdf8;
+ font-weight:bold;
+ box-shadow:0 0 15px #38bdf8;
+ cursor:pointer;
+ transition:.2s;
+}
+
+.glowBtn:hover{
+ transform:scale(1.05);
+ box-shadow:0 0 35px #38bdf8;
+}
+
+/* INPUT */
+input{
+ width:100%;
+ padding:14px;
+ margin:6px 0;
+ border-radius:10px;
+ border:1px solid #38bdf8;
+ background:#020617;
+ color:white;
+}
+
+/* GRID */
+.grid{
+ display:grid;
+ grid-template-columns:repeat(2,1fr);
+ gap:10px;
+}
+
+/* SIGNAL */
+.signal{
+ border-left:4px solid #38bdf8;
+ padding:10px;
+ margin:6px 0;
+ background:#020617;
+ border-radius:8px;
+}
+
+.hidden{display:none;}
+
+.clock{
+ text-align:center;
+ color:#38bdf8;
+ font-size:18px;
+ margin-bottom:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">🚀 APX ULTRA PREMIUM TERMINAL</div>
+<div class="clock" id="clock"></div>
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<h3>🔐 LOGIN</h3>
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button class="glowBtn" onclick="login()">LOGIN</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash" class="hidden">
+
+<!-- PAIRS -->
+<div class="card">
+<h3>📊 PAIRS</h3>
+<div class="grid" id="pairsBox"></div>
+</div>
+
+<!-- CONTROL -->
+<div class="card">
+<h3>🎛 CONTROL</h3>
+<button class="glowBtn" onclick="sendSignal()">SEND SIGNAL</button>
+<button class="glowBtn" onclick="resetFeed()">RESET FEED</button>
+</div>
+
+<!-- SUMMARY -->
+<div class="card">
+<h3>📈 SUMMARY</h3>
+<div id="summaryBox"></div>
+</div>
+
+<!-- FEED -->
+<div class="card">
+<h3>🤖 LIVE SIGNAL / RESULT</h3>
+<div id="feedBox"></div>
+</div>
+
+</div>
+
+<audio id="alertSound">
+<source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
+</audio>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+
+const PAIRS=[
+"AXP-OTC","PFE-OTC","INTL-OTC",
+"JNJ-OTC","MCD-OTC","BA-OTC","MSFT-OTC"
+];
+
+let selectedPair="";
+let lastSignalCount=0;
+
+// LOGIN
+async function login(){
+
+ let r=await fetch(API+"/api/login",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({
+ u:user.value,
+ p:pass.value
+ })
+ });
+
+ let j=await r.json();
+
+ if(j.ok){
+ loginBox.style.display="none";
+ dash.classList.remove("hidden");
+ buildPairs();
+ loadFeed();
+ }else alert("Login Failed");
+}
+
+// BUILD PAIRS
+function buildPairs(){
+
+ let html="";
+ PAIRS.forEach(p=>{
+ html+=`<button class="glowBtn" onclick="selectPair('${p}')">${p}</button>`;
+ });
+ pairsBox.innerHTML=html;
+}
+
+function selectPair(p){
+ selectedPair=p;
+ alert("Selected: "+p);
+}
+
+// SEND
+async function sendSignal(){
+
+ await fetch(API+"/api/manual-signal",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({pair:selectedPair})
+ });
+
+ loadFeed();
+}
+
+// RESET
+function resetFeed(){
+ feedBox.innerHTML="RESET DONE";
+}
+
+// UTC+5 CLOCK
+function updateClock(){
+ let d=new Date(Date.now()+5*60*60*1000);
+ clock.innerText="UTC+5 Time: "+d.toLocaleString();
+}
+setInterval(updateClock,1000);
+
+// LOAD FEED
+async function loadFeed(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ let feed="";
+ let win=0,loss=0,mtg=0,total=0;
+
+ if(j.results.length>lastSignalCount){
+ document.getElementById("alertSound").play();
+ lastSignalCount=j.results.length;
+ }
+
+ j.results.forEach(s=>{
+
+ total++;
+
+ if(s.result?.includes("WIN")) win++;
+ if(s.result?.includes("LOSS")) loss++;
+ if(s.result?.includes("MTG")) mtg++;
+
+ feed+=`
+ <div class="signal">
+ 📊 ${s.pair}<br>
+ 📈 ${s.direction}<br>
+ RESULT: ${s.result}<br>
+ ⏰ ${s.signal_time}
+ </div>
+ `;
+ });
+
+ feedBox.innerHTML=feed;
+
+ let acc=total?((win/total)*100).toFixed(1):0;
+
+ summaryBox.innerHTML=`
+ Total Signals: ${total}<br>
+ Wins: ${win}<br>
+ Loss: ${loss}<br>
+ MTG: ${mtg}<br>
+ Accuracy: ${acc}%
+ `;
+}
+
+setInterval(loadFeed,4000);
+
+</script>
+
+</body>
+</html>
