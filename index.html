@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX PREMIUM DASHBOARD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body{background:#020617;color:white;font-family:Segoe UI;padding:15px;}
+.header{text-align:center;font-size:26px;color:#38bdf8;text-shadow:0 0 10px #38bdf8;margin-bottom:10px;}
+.card{border:1px solid #38bdf8;border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 0 10px rgba(56,189,248,.4);}
+.btn{width:100%;padding:12px;margin:5px 0;border-radius:10px;border:1px solid #38bdf8;background:#020617;color:#38bdf8;font-weight:bold;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.scroll{max-height:240px;overflow:auto;}
+.signal{border-left:3px solid #38bdf8;padding:8px;margin:5px 0;font-size:14px;}
+.clock{text-align:center;color:#38bdf8;margin-bottom:8px;}
+.hidden{display:none;}
+</style>
+</head>
+
+<body>
+
+<div class="header">🚀 APX PREMIUM TERMINAL</div>
+<div class="clock" id="clock"></div>
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button class="btn" onclick="login()">LOGIN</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash" class="hidden">
+
+<!-- PAIRS -->
+<div class="card">
+<h3>📊 SELECT PAIR</h3>
+<div class="grid" id="pairs"></div>
+</div>
+
+<!-- CONTROL -->
+<div class="card">
+<h3>🎛 CONTROL</h3>
+<button class="btn" onclick="sendSignal()">🚀 SEND SIGNAL</button>
+<button class="btn" onclick="win()">💯🏆 WIN</button>
+<button class="btn" onclick="loss()">💀📉 LOSS</button>
+<button class="btn" onclick="mtg()">⚠🔥 MTG1</button>
+<button class="btn" onclick="resetSummary()">♻ RESET SUMMARY</button>
+</div>
+
+<!-- SUMMARY -->
+<div class="card">
+<h3>📊 PARTIAL SUMMARY</h3>
+<div id="summary"></div>
+</div>
+
+<!-- FEED -->
+<div class="card scroll">
+<h3>🤖 LIVE SIGNAL / RESULT</h3>
+<div id="feed"></div>
+</div>
+
+</div>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+
+const PAIRS=[
+"AXP-OTC","PFE-OTC","INTL-OTC",
+"JNJ-OTC","MCD-OTC","BA-OTC","MSFT-OTC"
+];
+
+let selectedPair="";
+
+// LOGIN
+async function login(){
+ let r=await fetch(API+"/api/login",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({u:user.value,p:pass.value})
+ });
+ let j=await r.json();
+ if(j.ok){
+ loginBox.style.display="none";
+ dash.classList.remove("hidden");
+ buildPairs();
+ load();
+ }else alert("Login Failed");
+}
+
+// BUILD PAIRS
+function buildPairs(){
+ let html="";
+ PAIRS.forEach(p=>{
+ html+=`<button class="btn" onclick="selectedPair='${p}'">${p}</button>`;
+ });
+ pairs.innerHTML=html;
+}
+
+// SEND SIGNAL
+async function sendSignal(){
+ await fetch(API+"/api/manual-signal",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({pair:selectedPair})
+ });
+ load();
+}
+
+// RESULT BUTTONS
+async function win(){ await update("WIN 🏆💚"); }
+async function loss(){ await update("LOSS ❌"); }
+async function mtg(){ await update("MTG 1 ⚠"); }
+
+async function update(r){
+ await fetch(API+"/api/update-result",{
+ method:"POST",
+ headers:{ "Content-Type":"application/json" },
+ body:JSON.stringify({result:r})
+ });
+ load();
+}
+
+// RESET SUMMARY
+async function resetSummary(){
+ await fetch(API+"/api/reset-summary",{method:"POST"});
+ load();
+}
+
+// LOAD FEED + SUMMARY
+async function load(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ let total=0, win=0, loss=0, mtg=0;
+ let feedHtml="";
+
+ j.results.forEach(s=>{
+
+ total++;
+
+ if(s.result?.includes("WIN")) win++;
+ if(s.result?.includes("LOSS")) loss++;
+ if(s.result?.includes("MTG")) mtg++;
+
+ feedHtml+=`
+ <div class="signal">
+ 📊 ${s.pair}<br>
+ 📈 ${s.direction}<br>
+ RESULT: ${s.result}<br>
+ ⏰ ${s.signal_time}
+ </div>`;
+ });
+
+ feed.innerHTML=feedHtml;
+
+ let acc=total?((win/total)*100).toFixed(1):0;
+
+ summary.innerHTML=`
+ Total Signals: ${total}<br>
+ 💯 Wins: ${win}<br>
+ 💀 Loss: ${loss}<br>
+ 🔥 MTG: ${mtg}<br>
+ 🎯 Accuracy: ${acc}%
+ `;
+}
+
+// CLOCK UTC+5
+setInterval(()=>{
+ let d=new Date(Date.now()+5*60*60*1000);
+ clock.innerText="UTC+5: "+d.toLocaleString();
+},1000);
+
+setInterval(load,7000);
+
+</script>
+
+</body>
+</html>
