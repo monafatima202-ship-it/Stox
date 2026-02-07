@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>APX ULTRA AI DASHBOARD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+ background:linear-gradient(135deg,#020617,#020617,#020617);
+ font-family:Segoe UI;
+ color:white;
+ padding:20px;
+}
+
+.card{
+ backdrop-filter:blur(20px);
+ background:rgba(15,23,42,0.6);
+ border:1px solid rgba(59,130,246,0.3);
+ box-shadow:0 0 20px rgba(59,130,246,0.3);
+ padding:20px;
+ border-radius:18px;
+ margin-bottom:20px;
+}
+
+h2{
+ color:#38bdf8;
+ text-shadow:0 0 10px #38bdf8;
+}
+
+button{
+ padding:12px 18px;
+ margin:6px;
+ border:none;
+ border-radius:10px;
+ font-weight:bold;
+ cursor:pointer;
+}
+
+.green{background:#22c55e;color:black;}
+.red{background:#ef4444;color:white;}
+.blue{background:#3b82f6;color:white;}
+
+input{
+ width:95%;
+ padding:12px;
+ margin:6px;
+ border-radius:10px;
+ border:none;
+ background:#020617;
+ color:white;
+}
+
+table{
+ width:100%;
+ border-collapse:collapse;
+}
+
+td,th{
+ padding:10px;
+ border-bottom:1px solid rgba(59,130,246,0.2);
+ text-align:center;
+}
+
+.hidden{display:none;}
+
+.statusDot{
+ height:12px;
+ width:12px;
+ border-radius:50%;
+ display:inline-block;
+ margin-left:10px;
+}
+
+.on{background:#22c55e;box-shadow:0 0 10px #22c55e;}
+.off{background:#ef4444;box-shadow:0 0 10px #ef4444;}
+
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<h2>🔐 APX ULTRA LOGIN</h2>
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button class="blue" onclick="login()">LOGIN</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash" class="hidden">
+
+<div class="card">
+<h2>🤖 SYSTEM CONTROL</h2>
+
+<button class="green" onclick="botOn()">BOT ON</button>
+<button class="red" onclick="botOff()">BOT OFF</button>
+
+<button class="green" onclick="sigOn()">SIGNAL ON</button>
+<button class="red" onclick="sigOff()">SIGNAL OFF</button>
+
+<div style="margin-top:15px">
+BOT <span id="botDot" class="statusDot"></span>
+SIGNAL <span id="sigDot" class="statusDot"></span>
+</div>
+
+</div>
+
+<div class="card">
+<h2>🚀 SEND SIGNAL</h2>
+<input id="pair" placeholder="PAIR (AXP-OTC)">
+<input id="dir" placeholder="CALL / PUT">
+<input id="entry" placeholder="Entry Price">
+
+<button class="green" onclick="sendSignal()">SEND SIGNAL</button>
+</div>
+
+<div class="card">
+<h2>📊 SEND RESULT</h2>
+<input id="sid" placeholder="Signal ID">
+<input id="result" placeholder="WIN / LOSS">
+
+<button class="blue" onclick="sendResult()">SEND RESULT</button>
+</div>
+
+<div class="card">
+<h2>📈 STATS</h2>
+<div id="stats"></div>
+</div>
+
+<div class="card">
+<h2>📜 HISTORY</h2>
+<table id="table"></table>
+</div>
+
+</div>
+
+<script>
+
+const API="https://b.mkapi009.workers.dev";
+
+// LOGIN
+async function login(){
+
+ let u=user.value;
+ let p=pass.value;
+
+ let r=await fetch(API+"/api/login",{
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({u,p})
+ });
+
+ let j=await r.json();
+
+ if(j.ok){
+  loginBox.style.display="none";
+  dash.classList.remove("hidden");
+  loadAll();
+ }else alert("Login Failed");
+
+}
+
+// BOT CONTROL
+async function botOn(){ await fetch(API+"/api/bot-on"); loadStatus(); }
+async function botOff(){ await fetch(API+"/api/bot-off"); loadStatus(); }
+async function sigOn(){ await fetch(API+"/api/signal-on"); loadStatus(); }
+async function sigOff(){ await fetch(API+"/api/signal-off"); loadStatus(); }
+
+// STATUS
+async function loadStatus(){
+
+ let r=await fetch(API+"/api/status");
+ let j=await r.json();
+
+ botDot.className="statusDot "+(j.bot_enabled==="ON"?"on":"off");
+ sigDot.className="statusDot "+(j.signal_enabled==="ON"?"on":"off");
+}
+
+// SEND SIGNAL
+async function sendSignal(){
+
+ let pair=pair.value;
+ let dir=dir.value;
+ let entry=entry.value;
+
+ let text=`🤖 APEX PREMIUM BOT
+━━━━━━━━━━━━━━━
+🚀 TRADE SIGNAL
+📊 PAIR: ${pair}
+📈 SIGNAL: ${dir}
+💰 ENTRY: ${entry}
+━━━━━━━━━━━━━━━
+🌐 Powered by APX Premium`;
+
+ await fetch(API+"/api/send-signal",{
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({pair,direction:dir,entry,text})
+ });
+
+ alert("Signal Sent");
+ loadAll();
+}
+
+// SEND RESULT
+async function sendResult(){
+
+ let id=sid.value;
+ let result=result.value;
+
+ let text=`🤖 APEX PREMIUM BOT
+━━━━━━━━━━━━━━━
+${result==="WIN"?"🏆 WIN 💚":"❌ LOSS"}
+━━━━━━━━━━━━━━━
+🌐 APX Premium`;
+
+ await fetch(API+"/api/send-result",{
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({id,result,text})
+ });
+
+ alert("Result Sent");
+ loadAll();
+}
+
+// STATS
+async function loadStats(){
+ let r=await fetch(API+"/api/stats");
+ let j=await r.json();
+ stats.innerHTML=`Total ${j.total} | Win ${j.win} | Loss ${j.loss} | WR ${j.wr}%`;
+}
+
+// HISTORY
+async function loadTable(){
+
+ let r=await fetch(API+"/api/signals");
+ let j=await r.json();
+
+ let html="<tr><th>ID</th><th>PAIR</th><th>DIR</th><th>ENTRY</th><th>RESULT</th></tr>";
+
+ j.results.forEach(s=>{
+  html+=`<tr>
+   <td>${s.id}</td>
+   <td>${s.pair}</td>
+   <td>${s.direction}</td>
+   <td>${s.entry}</td>
+   <td>${s.result}</td>
+  </tr>`;
+ });
+
+ table.innerHTML=html;
+}
+
+function loadAll(){
+ loadStatus();
+ loadStats();
+ loadTable();
+}
+
+setInterval(loadAll,5000);
+
+</script>
+
+</body>
+  </html>
